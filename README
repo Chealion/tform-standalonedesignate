@@ -1,3 +1,7 @@
 # Desginate "Standalone"
 
 ## Install Keystone, RabbitMQ, MySQL, Designate, Apache, PowerDNS, and Horizon all on one box.
+
+Includes Terraform file and a generated key.
+
+**REGENERATE** the key. (Treat it like the vagrant ssh key)
