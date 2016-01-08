@@ -25,21 +25,21 @@ sudo debconf-set-selections <<< "mysql-server mysql-server/root_password passwor
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password_again password ${MYSQL_PASSWORD}"
 
 # Stick with Trusty/Kilo packages for rest of services
-apt-get install -y wget apache2 mysql-server keystone openstack-dashboard designate designate-mdns designate-pool-manager designate-zone-manager pdns-server pdns-backend-mysql memcached 
+apt-get install -y wget apache2 mysql-server keystone openstack-dashboard designate designate-mdns designate-pool-manager designate-zone-manager pdns-server pdns-backend-mysql 
 apt-get remove -y openstack-dashboard-ubuntu-theme
 
 # MySQL Databases
 
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE keystone;"
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE designate;"
-#mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE designate_pool_manager;"
+mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE designate_pool_manager;"
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE pdns default character set utf8 default collate utf8_general_ci;"
 
 # Create users for MySQL and Rabbit
 # Normally taken care of by Puppet
 mysql -uroot -p${MYSQL_PASSWORD} -e "GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY '${MYSQL_PASSWORD}';"
 mysql -uroot -p${MYSQL_PASSWORD} -e "GRANT ALL PRIVILEGES ON designate.* TO 'designate'@'localhost' IDENTIFIED BY '${MYSQL_PASSWORD}';"
-#mysql -uroot -p${MYSQL_PASSWORD} -e "GRANT ALL PRIVILEGES ON designate_pool_manager.* TO 'designate'@'localhost' IDENTIFIED BY '${MYSQL_PASSWORD}';"
+mysql -uroot -p${MYSQL_PASSWORD} -e "GRANT ALL PRIVILEGES ON designate_pool_manager.* TO 'designate'@'localhost' IDENTIFIED BY '${MYSQL_PASSWORD}';"
 mysql -uroot -p${MYSQL_PASSWORD} -e "GRANT ALL PRIVILEGES ON pdns.* TO 'pdns'@'localhost' IDENTIFIED BY '${MYSQL_PASSWORD}';"
 
 rabbitmqctl add_vhost openstack
