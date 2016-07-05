@@ -78,27 +78,27 @@ for i in designate-central designate-api designate-pool-manager designate-mdns; 
 export OS_SERVICE_TOKEN=password
 export OS_SERVICE_ENDPOINT=http://localhost:35357/v2.0
 
-keystone tenant-create --name admin --description "admin"
-keystone tenant-create --name services --description "services"
-keystone tenant-create --name gooduser --description "gooduser"
-keystone tenant-create --name gooduser2 --description "gooduser2"
+openstack project create --description "admin" admin
+openstack project create --description "services" services
+openstack project create --description "gooduser" gooduser
+openstack project create --description "gooduser2" gooduser2
 
-keystone user-create --name admin --tenant admin --pass password --email root@localhost
-keystone user-create --name gooduser --tenant gooduser --pass password --email root@localhost
-keystone user-create --name gooduser2 --tenant gooduser2 --pass password --email root@localhost
+openstack user create --project admin --password password --email root@localhost admin
+openstack user create --project gooduser --password password --email root@localhost gooduser
+openstack user create --project gooduser2 --password password --email root@localhost gooduser2
 
-keystone user-create --name keystone --tenant services --pass password --email root@localhost
-keystone user-create --name designate --tenant services --pass password --email root@localhost
+openstack user create --project services --password password --email root@localhost keystone
+openstack user create --project services --password password --email root@localhost designate
 
-keystone role-create --name admin
-keystone role-create --name Member
+openstack role create admin
+openstack role create Member
 
-keystone user-role-add --user admin --role admin --tenant admin
-keystone user-role-add --user keystone --role admin --tenant services
-keystone user-role-add --user designate --role admin --tenant services
+openstack role add --project admin --user admin admin
+openstack role add --project services --user keystone admin
+openstack role add --project services --user designate admin
 
-keystone user-role-add --user gooduser --role Member --tenant gooduser
-keystone user-role-add --user gooduser2 --role Member --tenant gooduser2
+openstack role add --project gooduser --user gooduser Member
+openstack role add --project gooduser2 --user2 gooduser2 Member
 
 unset OS_SERVICE_TOKEN
 unset OS_SERVICE_ENDPOINT
