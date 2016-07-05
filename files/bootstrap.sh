@@ -3,17 +3,14 @@
 # Install prereqs
 export DEBIAN_FRONTEND=noninteractive
 
-#/usr/local/bin/localSUS && /usr/local/bin/enableAutoUpdate && apt-get -y upgrade
 /usr/local/bin/localSUS && /usr/local/bin/enableAutoUpdate
 
 apt-get install -y python-software-properties software-properties-common
-add-apt-repository -y cloud-archive:liberty
+add-apt-repository -y cloud-archive:mitaka
 
 # Install Rabbit first - normally taken care of by Puppet
-# Rabbit 3.4.4 (RAC)
-wget https://www.rabbitmq.com/releases/rabbitmq-server/v3.4.4/rabbitmq-server_3.4.4-1_all.deb -O rabbitmq.deb
-# Rabbit 3.5.7 (LMC)
-# wget https://www.rabbitmq.com/releases/rabbitmq-server/v3.5.7/rabbitmq-server_3.5.7-1_all.deb -O rabbitmq.deb
+# Rabbit 3.5.7
+wget https://www.rabbitmq.com/releases/rabbitmq-server/v3.5.7/rabbitmq-server_3.5.7-1_all.deb -O rabbitmq.deb
 dpkg -i rabbitmq.deb
 apt-get install -yf
 
@@ -24,7 +21,7 @@ export MYSQL_PASSWORD="openstack"
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password password ${MYSQL_PASSWORD}"
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password_again password ${MYSQL_PASSWORD}"
 
-# Stick with Trusty/Kilo packages for rest of services
+#Packages
 apt-get install -y wget apache2 mysql-server keystone openstack-dashboard designate designate-mdns designate-pool-manager designate-zone-manager pdns-server pdns-backend-mysql 
 apt-get remove -y openstack-dashboard-ubuntu-theme
 
@@ -33,6 +30,7 @@ apt-get remove -y openstack-dashboard-ubuntu-theme
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE keystone;"
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE designate;"
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE designate_pool_manager;"
+mysql -uroot -p${MYSQL_PASSWORD} -e "DROP DATABASE IF EXISTS `pdns`;"
 mysql -uroot -p${MYSQL_PASSWORD} -e "CREATE DATABASE pdns default character set utf8 default collate utf8_general_ci;"
 
 # Create users for MySQL and Rabbit
@@ -51,6 +49,7 @@ rabbitmqctl set_permissions -p openstack designate ".*" ".*" ".*"
 # Load config files
 mv /home/ubuntu/files/keystone.conf /etc/keystone/keystone.conf
 mv /home/ubuntu/files/designate.conf /etc/designate/designate.conf
+mv /home/ubuntu/files/pools.yaml /etc/designate/pools.yaml
 mv /home/ubuntu/files/keystone-catalog /etc/keystone/default_catalog.templates
 mv /home/ubuntu/files/pdns-gmysql.conf /etc/powerdns/pdns.d/pdns.local.gmysql.conf
 mv /home/ubuntu/files/pdns.conf /etc/powerdns/pdns.conf
@@ -72,9 +71,7 @@ designate-manage database sync
 # Sync first database target
 designate-manage powerdns sync 0117acbc-3dd6-4555-8d74-bb929df1e26d
 service pdns restart
-for i in designate-central designate-api; do service $i restart; done
-#Pool Manager and mdns aren't in Ubuntu's distro? ugh.
-#for i in designate-central designate-api designate-pool-manager designate-mdns; do service $i restart; done
+for i in designate-central designate-api designate-pool-manager designate-mdns; do service $i restart; done
 
 # Create OpenStack Users
 
@@ -109,11 +106,12 @@ unset OS_SERVICE_ENDPOINT
 source /home/ubuntu/files/openrc
 
 # Designate initial setup
+designate-manage pool update --file /etc/designate/pools.yaml
+for i in designate-central designate-api designate-pool-manager designate-mdns; do service $i restart; done
 
-designate server-create --name ns.standalone.cybera.ca. 
+
 
 #Horizon plugin
-
 apt-get install -y python-pip git python-tox python-dev python3-dev
 
 git clone https://github.com/openstack/designate-dashboard
