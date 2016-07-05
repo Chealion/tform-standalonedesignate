@@ -14,6 +14,8 @@ wget https://www.rabbitmq.com/releases/rabbitmq-server/v3.5.7/rabbitmq-server_3.
 dpkg -i rabbitmq.deb
 apt-get install -yf
 
+echo " ====> Rabbit Installed"
+
 apt-get update
 
 export MYSQL_PASSWORD="openstack"
@@ -21,9 +23,16 @@ export MYSQL_PASSWORD="openstack"
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password password ${MYSQL_PASSWORD}"
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password_again password ${MYSQL_PASSWORD}"
 
-#Packages
-apt-get install -y wget apache2 mysql-server keystone openstack-dashboard designate designate-mdns designate-pool-manager designate-zone-manager pdns-server pdns-backend-mysql 
+#Install Keystone
+apt-get install -y wget apache2 mysql-server keystone libapache2-mod-wsgi
+
+echo " ====> Keystone Package Installed"
+
+# Install Horizon, Designate, PDNS
+apt-get install -y openstack-dashboard designate designate-mdns designate-pool-manager designate-zone-manager pdns-server pdns-backend-mysql memcached 
 apt-get remove -y openstack-dashboard-ubuntu-theme
+
+echo " ====> Other packages Installed"
 
 # MySQL Databases
 
@@ -48,6 +57,7 @@ rabbitmqctl set_permissions -p openstack designate ".*" ".*" ".*"
 
 # Load config files
 mv /home/ubuntu/files/keystone.conf /etc/keystone/keystone.conf
+mv /home/ubuntu/files/wsgi-keystone.conf /etc/apache2/sites-available/wsgi-keystone.conf
 mv /home/ubuntu/files/designate.conf /etc/designate/designate.conf
 mv /home/ubuntu/files/pools.yaml /etc/designate/pools.yaml
 mv /home/ubuntu/files/keystone-catalog /etc/keystone/default_catalog.templates
@@ -55,6 +65,13 @@ mv /home/ubuntu/files/pdns-gmysql.conf /etc/powerdns/pdns.d/pdns.local.gmysql.co
 mv /home/ubuntu/files/pdns.conf /etc/powerdns/pdns.conf
 rm /etc/powerdns/pdns.d/pdns.simplebind.conf
 
+ln -s /etc/apache2/sites-available/wsgi-keystone.conf /etc/apache2/sites-enabled
+
+echo " ====> MySQL and file injection"
+
+#echo "ServerName controller" >> /etc/apache2/apache2.conf
+
+# Configure Keystone
 service keystone restart
 keystone-manage db_sync
 
@@ -68,55 +85,68 @@ touch /var/log/designate/desigate-zone-manager.log
 chown -R designate:designate /var/log/designate/*
 
 designate-manage database sync
-# Sync first database target
-designate-manage powerdns sync 0117acbc-3dd6-4555-8d74-bb929df1e26d
+
 service pdns restart
-for i in designate-central designate-api designate-pool-manager designate-mdns; do service $i restart; done
+for i in api agent central mdns pool-manager; do service designate-$i restart; done
+
+echo " ====> Designate Sync Done"
 
 # Create OpenStack Users
 
 export OS_SERVICE_TOKEN=password
 export OS_SERVICE_ENDPOINT=http://localhost:35357/v2.0
 
-openstack project create --description "admin" admin
-openstack project create --description "services" services
-openstack project create --description "gooduser" gooduser
-openstack project create --description "gooduser2" gooduser2
-
-openstack user create --project admin --password password --email root@localhost admin
-openstack user create --project gooduser --password password --email root@localhost gooduser
-openstack user create --project gooduser2 --password password --email root@localhost gooduser2
-
-openstack user create --project services --password password --email root@localhost keystone
-openstack user create --project services --password password --email root@localhost designate
-
-openstack role create admin
-openstack role create Member
-
-openstack role add --project admin --user admin admin
-openstack role add --project services --user keystone admin
-openstack role add --project services --user designate admin
-
-openstack role add --project gooduser --user gooduser Member
-openstack role add --project gooduser2 --user2 gooduser2 Member
+keystone-manage bootstrap --bootstrap-password password
 
 unset OS_SERVICE_TOKEN
 unset OS_SERVICE_ENDPOINT
 
 source /home/ubuntu/files/openrc
 
+echo " ====> Keystone bootstrap"
+
+#openstack domain create --description "Default Domain" default
+#openstack project create --description "admin" admin
+openstack project create --description "services" services
+openstack project create --description "gooduser" gooduser
+openstack project create --description "gooduser2" gooduser2
+
+#openstack user create --project admin --password password --email root@localhost admin
+openstack user create --project gooduser --password password --email root@localhost gooduser
+openstack user create --project gooduser2 --password password --email root@localhost gooduser2
+
+openstack user create --project services --password password --email root@localhost keystone
+openstack user create --project services --password password --email root@localhost designate
+
+#openstack role create admin
+openstack role create Member
+
+#openstack role add --project admin --user admin admin
+openstack role add --project services --user keystone admin
+openstack role add --project services --user designate admin
+
+openstack role add --project gooduser --user gooduser Member
+openstack role add --project gooduser2 --user gooduser2 Member
+
+echo " ====> OpenStack users created"
+
 # Designate initial setup
 designate-manage pool update --file /etc/designate/pools.yaml
-for i in designate-central designate-api designate-pool-manager designate-mdns; do service $i restart; done
+for i in api agent central mdns pool-manager; do service designate-$i restart; done
 
+echo " ====> Pools done"
 
+# Sync first database target
+designate-manage powerdns sync 64a70384-7639-4445-ad17-bab5073b8170 
 
-#Horizon plugin
+echo " ====> PowerDNS Sync Done"
+
+#Horizon plugin - confirmed broken as on July 5, 2016
 apt-get install -y python-pip git python-tox python-dev python3-dev
 
 git clone https://github.com/openstack/designate-dashboard
 cd designate-dashboard
-git checkout stable/liberty
+git checkout stable/mitaka
 pip install -r requirements.txt --allow-all-external
 tox -evenv -- python setup.py sdist
 pip install dist/*.tar.gz
@@ -128,3 +158,5 @@ service apache2 restart
 
 # Add lines to /usr/share/openstack-dashboard/openstack_dashboard/settings.py!!!
 mv /home/ubuntu/files/horizonsettings.py /usr/share/openstack-dashboard/settings.py
+
+echo " ====> DONE"
