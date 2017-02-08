@@ -15,7 +15,7 @@ resource "openstack_compute_instance_v2" "designate-standalone" {
 resource "null_resource" "designate-standalone" {
   connection {
     user = "ubuntu"
-    key_file = "files/key/designate"
+    private_key = "${file("files/key/designate")}"
     host = "${openstack_compute_instance_v2.designate-standalone.access_ip_v6}"
   }
   provisioner file {
